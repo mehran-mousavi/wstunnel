@@ -23,4 +23,4 @@ RUN if [ "$ARCH" = "amd64" ]; then \
     && chmod +x wstunnel
 
 # Run wstunnel server
-CMD ./wstunnel --server ws://0.0.0.0:443
+CMD ./wstunnel --server wss://127.0.0.1:443
