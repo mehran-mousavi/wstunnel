@@ -1,37 +1,26 @@
-# Build Cache image
-FROM fpco/stack-build-small:lts-19.2 as builder-cache
+FROM ubuntu
 
-COPY stack.yaml /mnt
-COPY *.cabal /mnt
-WORKDIR /mnt
-RUN rm -rf ~/.stack &&  \
-    stack config set system-ghc --global true && \
-    stack setup && \
-    stack install --ghc-options="-fPIC" --only-dependencies
+# Determine machine architecture
+RUN ARCH=$(dpkg --print-architecture) \
+    && if [ "$ARCH" = "amd64" ]; then \
+        DOWNLOAD_URL="https://github.com/erebe/wstunnel/releases/download/v5.0/wstunnel-linux-x64"; \
+    else \
+        DOWNLOAD_URL="https://github.com/erebe/wstunnel/releases/download/v5.0/wstunnel-linux-aarch64.zip"; \
+    fi
 
+# Install necessary packages
+RUN apt-get update \
+    && apt-get install -y wget unzip
 
+# Download and extract wstunnel
+RUN if [ "$ARCH" = "amd64" ]; then \
+        wget "$DOWNLOAD_URL" -O wstunnel; \
+    else \
+        wget "$DOWNLOAD_URL" -O wstunnel.zip \
+        && unzip wstunnel.zip \
+        && rm wstunnel.zip; \
+    fi \
+    && chmod +x wstunnel
 
-# Build phase
-FROM builder-cache as builder
-# FROM ghcr.io/erebe/wstunnel:build-cache as builder
-COPY . /mnt
-
-RUN echo '  ld-options: -static' >> wstunnel.cabal ; \
-    stack install --ghc-options="-fPIC"
-#RUN upx /root/.local/bin/wstunnel
-
-
-
-# Final Image
-FROM alpine:latest as runner
-
-LABEL org.opencontainers.image.source https://github.com/erebe/server
-
-COPY --from=builder /root/.local/bin/wstunnel /
-RUN adduser -D abc && chmod +x /wstunnel
-
-USER abc
-WORKDIR /
-
-CMD ["/wstunnel --server ws://0.0.0.0:443"]
-
+# Run wstunnel server
+CMD ./wstunnel --server ws://0.0.0.0:443
